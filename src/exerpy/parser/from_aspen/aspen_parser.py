@@ -245,7 +245,6 @@ class AspenModelParser:
                             if (exergy_node is not None and exergy_node.Value is not None)
                             else (logging.warning(f"e_PH node not found or empty for stream {stream_name}"), None)[1]
                         ),
-                        "e_PH_unit": fluid_property_data["e"]["SI_unit"],
                         "n": (
                             convert_to_SI("n", totflow_node.Value, totflow_node.UnitString, context=f"stream:{stream_name}:TOT_FLOW")
                             if (totflow_node is not None and totflow_node.Value is not None)
@@ -482,17 +481,10 @@ class AspenModelParser:
                         try:
                             connection_data[key] = convert_to_SI(property_key, node.Value, node.UnitString, context=f"stream:{stream_name}:{name}")
                             connection_data[f"{key}_unit"] = fluid_property_data["e"]["SI_unit"]
-                        except Exception:
-                            logging.warning(
-                                f"Unit conversion for {name} in stream {stream_name} failed: attempting fallback to 'power' conversion."
-                            )
-                            try:
-                                connection_data[key] = convert_to_SI("power", node.Value, node.UnitString, context=f"stream:{stream_name}:{name}")
-                                connection_data[f"{key}_unit"] = fluid_property_data["power"]["SI_unit"]
-                            except Exception as e2:
-                                logging.warning(f"Fallback conversion also failed for {name} in stream {stream_name}: {e2}. Setting to None.")
-                                connection_data[key] = None
-                                connection_data[f"{key}_unit"] = None
+                        except Exception as e:
+                            logging.warning(f"Conversion for {name} in stream {stream_name} failed: {e}. Setting to None.")
+                            connection_data[key] = None
+                            connection_data[f"{key}_unit"] = None
                     else:
                         connection_data[key] = None
                         connection_data[f"{key}_raw"] = None
