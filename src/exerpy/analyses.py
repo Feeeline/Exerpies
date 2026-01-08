@@ -201,8 +201,65 @@ class ExergyAnalysis:
             if component.__class__.__name__ == "CycleCloser":
                 continue
             else:
+                # Log inputs for this component before exergy calculation
+                try:
+                    inl_summary = []
+                    for k, v in component.inl.items():
+                        try:
+                            inl_summary.append({
+                                "name": k,
+                                "T": v.get("T"),
+                                "p": v.get("p"),
+                                "m": v.get("m"),
+                                "h": v.get("h"),
+                                "e_PH": v.get("e_PH"),
+                                "e_T": v.get("e_T"),
+                                "e_M": v.get("e_M"),
+                            })
+                        except Exception:
+                            inl_summary.append({"name": k, "raw": str(v)})
+                except Exception:
+                    inl_summary = str(component.inl)
+
+                try:
+                    outl_summary = []
+                    for k, v in component.outl.items():
+                        try:
+                            outl_summary.append({
+                                "name": k,
+                                "T": v.get("T"),
+                                "p": v.get("p"),
+                                "m": v.get("m"),
+                                "h": v.get("h"),
+                                "e_PH": v.get("e_PH"),
+                                "e_T": v.get("e_T"),
+                                "e_M": v.get("e_M"),
+                            })
+                        except Exception:
+                            outl_summary.append({"name": k, "raw": str(v)})
+                except Exception:
+                    outl_summary = str(component.outl)
+
+                # Also capture power/heat connections if present on the component object
+                power_info = {}
+                for idx, conn in getattr(component, "inl", {}).items():
+                    if conn is not None and conn.get("kind") == "power" and "energy_flow" in conn:
+                        power_info[f"in_{idx}"] = conn.get("energy_flow")
+                for idx, conn in getattr(component, "outl", {}).items():
+                    if conn is not None and conn.get("kind") == "power" and "energy_flow" in conn:
+                        power_info[f"out_{idx}"] = conn.get("energy_flow")
+
+                # Emit both print (guaranteed to appear in redirected test log) and logging.info
+                msg = (
+                    f"Component inputs before calc | {component.name} ({component.__class__.__name__}) | "
+                    f"inlets={inl_summary} | outlets={outl_summary} | power={power_info}"
+                )
+                logging.info(msg)
+                print(msg)
+
                 # Calculate E_F, E_D, E_P
                 component.calc_exergy_balance(self.Tamb, self.pamb, self.split_physical_exergy)
+
                 # Safely calculate y and y* avoiding division by zero
                 if self.E_F != 0:
                     component.y = component.E_D / self.E_F
@@ -671,7 +728,7 @@ class ExergyAnalysis:
                 kind = conn_data.get("kind", "")
                 exergy = conn_data.get("E", 0)
                 # Only consider material/heat/power streams with significant exergy
-                if kind in ["material", "heat", "power"] and abs(exergy) > 1e-3:
+                if kind in ["material", "heat", "power"] and exergy is not None and abs(exergy) > 1e-3:
                     system_boundary_conns.append(conn_name)
 
         # Find unaccounted boundary connections
@@ -867,6 +924,24 @@ def _process_json(
         missing_fields = [f for f in required_conn_fields if f not in conn_data]
         if missing_fields:
             raise ValueError(f"Connection '{conn_name}' missing required fields: {missing_fields}")
+
+    # Normalize exergy keys from lowercase variants (e_ph/e_ch/e_m/e_t) to expected uppercase names.
+    exergy_key_map = {
+        "e_ph": "e_PH",
+        "e_ch": "e_CH",
+        "e_m": "e_M",
+        "e_t": "e_T",
+    }
+    for conn_name, conn_data in data["connections"].items():
+        for src_key, dst_key in exergy_key_map.items():
+            if dst_key not in conn_data and src_key in conn_data:
+                conn_data[dst_key] = conn_data.get(src_key)
+                unit_key = f"{src_key}_unit"
+                if f"{dst_key}_unit" not in conn_data and unit_key in conn_data:
+                    conn_data[f"{dst_key}_unit"] = conn_data.get(unit_key)
+                logging.warning(
+                    f"Normalized connection {conn_name} exergy key '{src_key}' to '{dst_key}'."
+                )
 
     # Add chemical exergy if library provided
     if chemExLib:
