@@ -898,9 +898,9 @@ for alias, base in {
     "x_ar": "x",
     "x_co2": "x",
     "x_h2o": "x",
-    "e_ch": "power",
-    "e_m": "power",
-    "e_ph": "power",
-    "e_th": "power",
+    "e_ch": "e",
+    "e_m": "e",
+    "e_ph": "e",
+    "e_th": "e",
 }.items():
     fluid_property_data[alias] = fluid_property_data[base]
