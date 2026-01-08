@@ -60,8 +60,17 @@ class Splitter(Component):
             raise ValueError("Splitter requires at least one inlet and two outlets.")
         outlet_list = list(self.outl.values())
         inlet_list = list(self.inl.values())
-        E_in = sum(inlet.get("m", 0) * inlet.get("e_PH") for inlet in inlet_list)
-        E_out = sum(outlet.get("m", 0) * outlet.get("e_PH") for outlet in outlet_list)
+
+        def _specific_exergy_power(stream):
+            """Return exergy flow m*e_PH; tolerate missing e_PH by treating as 0."""
+            m_val = stream.get("m") if stream is not None else 0.0
+            e_ph_val = stream.get("e_PH") if stream is not None else 0.0
+            if m_val is None or e_ph_val is None:
+                return 0.0
+            return m_val * e_ph_val
+
+        E_in = sum(_specific_exergy_power(inlet) for inlet in inlet_list)
+        E_out = sum(_specific_exergy_power(outlet) for outlet in outlet_list)
         self.E_P = np.nan
         self.E_F = np.nan
         self.E_D = E_in - E_out

@@ -204,40 +204,105 @@ class ExergyAnalysis:
                 # Log inputs for this component before exergy calculation
                 try:
                     inl_summary = []
+                    logging.info(f"\n>>> COMPONENT INPUT DIAGNOSTIC: {component.name} ({component.__class__.__name__}) <<<")
+                    logging.info(f"    component.inl has {len(component.inl)} inlet(s)")
+                    
                     for k, v in component.inl.items():
+                        logging.info(f"      Inlet[{k}] type={type(v).__name__}")
                         try:
-                            inl_summary.append({
-                                "name": k,
-                                "T": v.get("T"),
-                                "p": v.get("p"),
-                                "m": v.get("m"),
-                                "h": v.get("h"),
-                                "e_PH": v.get("e_PH"),
-                                "e_T": v.get("e_T"),
-                                "e_M": v.get("e_M"),
-                            })
-                        except Exception:
-                            inl_summary.append({"name": k, "raw": str(v)})
-                except Exception:
+                            if v is None:
+                                logging.warning(f"        ✗ Inlet[{k}] is None!")
+                                inl_summary.append({"name": k, "status": "None"})
+                            elif not isinstance(v, dict):
+                                logging.warning(f"        ✗ Inlet[{k}] is not dict: {type(v).__name__}")
+                                inl_summary.append({"name": k, "raw": str(v)[:100]})
+                            else:
+                                # Show ALL keys present
+                                all_keys = sorted(v.keys())
+                                logging.info(f"        All keys present: {all_keys}")
+                                
+                                inlet_data = {
+                                    "name": k,
+                                    "T": v.get("T"),
+                                    "p": v.get("p"),
+                                    "m": v.get("m"),
+                                    "h": v.get("h"),
+                                    "e_PH": v.get("e_PH"),
+                                    "e_T": v.get("e_T"),
+                                    "e_M": v.get("e_M"),
+                                }
+                                
+                                # Check e_PH specifically
+                                if 'e_PH' not in v:
+                                    logging.warning(f"        ✗ 'e_PH' key NOT in inlet dict!")
+                                    # Look for similar keys
+                                    e_keys = [key for key in all_keys if key.startswith('e')]
+                                    if e_keys:
+                                        logging.warning(f"          But found e_* keys: {e_keys}")
+                                        for ek in e_keys:
+                                            logging.warning(f"            {ek} = {v[ek]}")
+                                elif v['e_PH'] is None:
+                                    logging.warning(f"        ⚠ 'e_PH' key exists but value is None")
+                                else:
+                                    logging.info(f"        ✓ e_PH = {v['e_PH']}")
+                                
+                                inl_summary.append(inlet_data)
+                        except Exception as ex:
+                            logging.error(f"        ✗ Error processing inlet[{k}]: {ex}")
+                            inl_summary.append({"name": k, "error": str(ex)})
+                except Exception as ex:
+                    logging.error(f"    ✗ Error building inl_summary: {ex}")
                     inl_summary = str(component.inl)
 
                 try:
                     outl_summary = []
+                    logging.info(f"    component.outl has {len(component.outl)} outlet(s)")
+                    
                     for k, v in component.outl.items():
+                        logging.info(f"      Outlet[{k}] type={type(v).__name__}")
                         try:
-                            outl_summary.append({
-                                "name": k,
-                                "T": v.get("T"),
-                                "p": v.get("p"),
-                                "m": v.get("m"),
-                                "h": v.get("h"),
-                                "e_PH": v.get("e_PH"),
-                                "e_T": v.get("e_T"),
-                                "e_M": v.get("e_M"),
-                            })
-                        except Exception:
-                            outl_summary.append({"name": k, "raw": str(v)})
-                except Exception:
+                            if v is None:
+                                logging.warning(f"        ✗ Outlet[{k}] is None!")
+                                outl_summary.append({"name": k, "status": "None"})
+                            elif not isinstance(v, dict):
+                                logging.warning(f"        ✗ Outlet[{k}] is not dict: {type(v).__name__}")
+                                outl_summary.append({"name": k, "raw": str(v)[:100]})
+                            else:
+                                # Show ALL keys present
+                                all_keys = sorted(v.keys())
+                                logging.info(f"        All keys present: {all_keys}")
+                                
+                                outlet_data = {
+                                    "name": k,
+                                    "T": v.get("T"),
+                                    "p": v.get("p"),
+                                    "m": v.get("m"),
+                                    "h": v.get("h"),
+                                    "e_PH": v.get("e_PH"),
+                                    "e_T": v.get("e_T"),
+                                    "e_M": v.get("e_M"),
+                                }
+                                
+                                # Check e_PH specifically
+                                if 'e_PH' not in v:
+                                    logging.warning(f"        ✗ 'e_PH' key NOT in outlet dict!")
+                                    # Look for similar keys
+                                    e_keys = [key for key in all_keys if key.startswith('e')]
+                                    if e_keys:
+                                        logging.warning(f"          But found e_* keys: {e_keys}")
+                                        for ek in e_keys:
+                                            logging.warning(f"            {ek} = {v[ek]}")
+                                elif v['e_PH'] is None:
+                                    logging.warning(f"        ⚠ 'e_PH' key exists but value is None")
+                                else:
+                                    logging.info(f"        ✓ e_PH = {v['e_PH']}")
+                                
+                                outl_summary.append(outlet_data)
+                        except Exception as ex:
+                            logging.error(f"        ✗ Error processing outlet[{k}]: {ex}")
+                            outl_summary.append({"name": k, "error": str(ex)})
+                except Exception as ex:
+                    logging.error(f"    ✗ Error building outl_summary: {ex}")
                     outl_summary = str(component.outl)
 
                 # Also capture power/heat connections if present on the component object
@@ -765,6 +830,24 @@ def _construct_components(component_data, connection_data, Tamb):
     """
     components = {}  # Initialize a dictionary to store created components
 
+    # ===== LOG: Show sample connection_data to verify e_PH is present =====
+    logging.info("\n" + "="*80)
+    logging.info("_construct_components: Starting component construction")
+    logging.info(f"Total connections in connection_data: {len(connection_data)}")
+    
+    # Sample first 2 connections to show what keys are available
+    sample_count = 0
+    for conn_id, conn_info in connection_data.items():
+        if sample_count < 2:
+            logging.info(f"  Sample connection[{conn_id}]:")
+            logging.info(f"    Keys present: {sorted(conn_info.keys())}")
+            if 'e_PH' in conn_info:
+                logging.info(f"    ✓ e_PH = {conn_info['e_PH']}")
+            else:
+                logging.info(f"    ✗ e_PH NOT FOUND in connection")
+            sample_count += 1
+    logging.info("="*80 + "\n")
+
     # Loop over component types (e.g., 'Combustion Chamber', 'Compressor')
     for component_type, component_instances in component_data.items():
         for component_name, component_information in component_instances.items():
@@ -788,16 +871,94 @@ def _construct_components(component_data, connection_data, Tamb):
             component.outl = {}
 
             # Assign streams to the components based on connection data
+            logging.info(f"\n--- Assigning connections for {component_name} ({component_type}) ---")
+            inlet_count = 0
+            outlet_count = 0
+            
             for _conn_id, conn_info in connection_data.items():
+                # ===== CRITICAL FIX: Convert total exergy (W) to specific exergy (J/kg) =====
+                # Aspen stores e_PH, e_T, e_M as TOTAL exergy flows in kW (converted to W)
+                # Parser stores them as 'eph', 'eth', 'em' keys
+                # But components need SPECIFIC exergy in J/kg under 'e_PH', 'e_T', 'e_M' keys
+                # Formula: e_specific (J/kg) = E_total (W) / m (kg/s)
+                
+                m = conn_info.get("m")  # Mass flow rate in kg/s
+                if m is not None and m > 1e-6:  # Valid mass flow
+                    # Convert parser keys (eph/eth/em) to component keys (e_PH/e_T/e_M)
+                    # and convert from total (W) to specific (J/kg)
+                    for parser_key, component_key in [("eph", "e_PH"), ("eth", "e_T"), ("em", "e_M")]:
+                        e_total = conn_info.get(parser_key)  # Try parser key first
+                        if e_total is None:
+                            e_total = conn_info.get(component_key)  # Try component key
+                        
+                        if e_total is not None and abs(e_total) > 1e-9:
+                            # Convert from total power (W) to specific exergy (J/kg)
+                            e_specific = e_total / m  # W / (kg/s) = J/kg
+                            logging.info(f"    Converting {parser_key}->{component_key}: {e_total:.6f} W / {m:.6f} kg/s = {e_specific:.6f} J/kg")
+                            conn_info[component_key] = e_specific  # Store under component key
+                        elif e_total is not None:
+                            # Very small value, likely already specific or zero
+                            logging.info(f"    {parser_key}={e_total:.2e} → {component_key} (no conversion, near-zero)")
+                            conn_info[component_key] = e_total
+                        else:
+                            # No value found
+                            conn_info[component_key] = None
+                else:
+                    # No mass flow or invalid - cannot convert
+                    for component_key in ["e_PH", "e_T", "e_M"]:
+                        conn_info[component_key] = None
+                    if any(conn_info.get(k) for k in ["eph", "eth", "em"]):
+                        logging.warning(f"    conn[{_conn_id}]: Cannot convert exergy to specific (m={m})")
+                
                 # Assign inlet streams
                 if conn_info["target_component"] == component_name:
                     target_connector_idx = conn_info["target_connector"]  # Use 0-based indexing
+                    
+                    # LOG BEFORE ASSIGNMENT
+                    logging.info(f"  INLET[{target_connector_idx}] ← conn_id={_conn_id}")
+                    logging.info(f"    conn_info keys: {sorted(conn_info.keys())}")
+                    logging.info(f"    T={conn_info.get('T')}, p={conn_info.get('p')}, m={conn_info.get('m')}, h={conn_info.get('h')}")
+                    if 'e_PH' in conn_info:
+                        logging.info(f"    ✓ e_PH={conn_info['e_PH']}, e_T={conn_info.get('e_T')}, e_M={conn_info.get('e_M')}")
+                    else:
+                        logging.info(f"    ✗ e_PH NOT in conn_info! Available e_* keys: {[k for k in conn_info.keys() if k.startswith('e')]}")
+                    
                     component.inl[target_connector_idx] = conn_info  # Assign inlet stream
+                    inlet_count += 1
+                    
+                    # LOG AFTER ASSIGNMENT TO VERIFY
+                    if target_connector_idx in component.inl:
+                        assigned_dict = component.inl[target_connector_idx]
+                        if 'e_PH' in assigned_dict:
+                            logging.info(f"    ✓ Verified: component.inl[{target_connector_idx}] has e_PH={assigned_dict['e_PH']}")
+                        else:
+                            logging.info(f"    ✗ WARNING: component.inl[{target_connector_idx}] missing e_PH after assignment!")
 
                 # Assign outlet streams
                 if conn_info["source_component"] == component_name:
                     source_connector_idx = conn_info["source_connector"]  # Use 0-based indexing
+                    
+                    # LOG BEFORE ASSIGNMENT
+                    logging.info(f"  OUTLET[{source_connector_idx}] ← conn_id={_conn_id}")
+                    logging.info(f"    conn_info keys: {sorted(conn_info.keys())}")
+                    logging.info(f"    T={conn_info.get('T')}, p={conn_info.get('p')}, m={conn_info.get('m')}, h={conn_info.get('h')}")
+                    if 'e_PH' in conn_info:
+                        logging.info(f"    ✓ e_PH={conn_info['e_PH']}, e_T={conn_info.get('e_T')}, e_M={conn_info.get('e_M')}")
+                    else:
+                        logging.info(f"    ✗ e_PH NOT in conn_info! Available e_* keys: {[k for k in conn_info.keys() if k.startswith('e')]}")
+                    
                     component.outl[source_connector_idx] = conn_info  # Assign outlet stream
+                    outlet_count += 1
+                    
+                    # LOG AFTER ASSIGNMENT TO VERIFY
+                    if source_connector_idx in component.outl:
+                        assigned_dict = component.outl[source_connector_idx]
+                        if 'e_PH' in assigned_dict:
+                            logging.info(f"    ✓ Verified: component.outl[{source_connector_idx}] has e_PH={assigned_dict['e_PH']}")
+                        else:
+                            logging.info(f"    ✗ WARNING: component.outl[{source_connector_idx}] missing e_PH after assignment!")
+            
+            logging.info(f"--- {component_name}: Assigned {inlet_count} inlets, {outlet_count} outlets ---\n")
 
             # --- NEW: Automatically mark Valve components as dissipative ---
             # Here we assume that if a Valve's first inlet and first outlet have temperatures (key "T")

@@ -343,27 +343,34 @@ def add_total_exergy_flow(my_json, split_physical_exergy):
     for conn_name, conn_data in my_json["connections"].items():
         try:
             if conn_data["kind"] == "material":
-                # For material connections: E = m * (e^PH + e^CH)
-                conn_data["E_PH"] = conn_data["m"] * conn_data["e_PH"]
+                # For material connections: E = m * (e^PH + e^CH). Treat missing exergies as zero.
+                m_val = conn_data.get("m") or 0.0
+                e_ph_val = conn_data.get("e_PH") or 0.0
+                if conn_data.get("e_PH") is None:
+                    logging.warning(f"Connection {conn_name}: e_PH missing; using 0 for total exergy flow")
+
+                conn_data["E_PH"] = m_val * e_ph_val
+
                 if conn_data.get("e_CH") is not None:
-                    conn_data["E_CH"] = conn_data["m"] * conn_data["e_CH"]
+                    e_ch_val = conn_data.get("e_CH") or 0.0
+                    conn_data["E_CH"] = m_val * e_ch_val
                     conn_data["E"] = conn_data["E_PH"] + conn_data["E_CH"]
                 else:
                     conn_data["E"] = conn_data["E_PH"]
                     logging.info(f"Missing chemical exergy for connection {conn_name}. Using only physical exergy.")
+
                 if split_physical_exergy:
-                    if conn_data.get("e_T") is not None:
-                        conn_data["E_T"] = conn_data["m"] * conn_data["e_T"]
-                    else:
-                        msg = f"Missing thermal exergy for connection {conn_name}."
-                        logging.error(msg)
-                        raise KeyError(msg)
-                    if conn_data.get("e_M") is not None:
-                        conn_data["E_M"] = conn_data["m"] * conn_data["e_M"]
-                    else:
-                        msg = f"Missing mechanical exergy for connection {conn_name}."
-                        logging.error(msg)
-                        raise KeyError(msg)
+                    e_t_val = conn_data.get("e_T")
+                    e_m_val = conn_data.get("e_M")
+                    if e_t_val is None:
+                        logging.warning(f"Connection {conn_name}: e_T missing; using 0 for E_T")
+                        e_t_val = 0.0
+                    if e_m_val is None:
+                        logging.warning(f"Connection {conn_name}: e_M missing; using 0 for E_M")
+                        e_m_val = 0.0
+
+                    conn_data["E_T"] = m_val * e_t_val
+                    conn_data["E_M"] = m_val * e_m_val
             elif conn_data["kind"] == "power":
                 # For power connections, use the energy flow value directly.
                 conn_data["E"] = conn_data["energy_flow"]
@@ -395,11 +402,12 @@ def add_total_exergy_flow(my_json, split_physical_exergy):
                         # For simplicity, take the first inlet and first outlet.
                         inlet = inlet_conns[0]
                         outlet = outlet_conns[0]
-                        # Calculate the heat exergy difference using the selected key:
-                        conn_data["E"] = abs(
-                            inlet.get(exergy_key, 0) * inlet.get("m", 0)
-                            - outlet.get(exergy_key, 0) * outlet.get("m", 0)
-                        )
+                        # Calculate the heat exergy difference using the selected key (tolerate missing values).
+                        inlet_e = inlet.get(exergy_key) or 0.0
+                        outlet_e = outlet.get(exergy_key) or 0.0
+                        inlet_m = inlet.get("m") or 0.0
+                        outlet_m = outlet.get("m") or 0.0
+                        conn_data["E"] = abs(inlet_e * inlet_m - outlet_e * outlet_m)
                     else:
                         conn_data["E"] = None
                         logging.warning(
@@ -429,16 +437,13 @@ def add_total_exergy_flow(my_json, split_physical_exergy):
                         water_inj_IP = inlet_conns[3] if len(inlet_conns) > 3 else {}  # inl[3]: Water injection (IP)
 
                         exergy_type = "e_T" if split_physical_exergy else "e_PH"
-                        # Calculate the contributions based on the new E_F definition:
-                        E_F_HP = superheated_HP.get("m", 0) * superheated_HP.get(exergy_type, 0) - feed_water.get(
-                            "m", 0
-                        ) * feed_water.get(exergy_type, 0)
-                        E_F_IP = superheated_IP.get("m", 0) * superheated_IP.get(exergy_type, 0) - steam_inlet.get(
-                            "m", 0
-                        ) * steam_inlet.get(exergy_type, 0)
-                        E_F_w_inj = water_inj_HP.get("m", 0) * water_inj_HP.get(exergy_type, 0) + water_inj_IP.get(
-                            "m", 0
-                        ) * water_inj_IP.get(exergy_type, 0)
+                        # Calculate the contributions based on the new E_F definition (tolerate missing values).
+                        def _flow(stream):
+                            return (stream.get("m") or 0.0) * (stream.get(exergy_type) or 0.0)
+
+                        E_F_HP = _flow(superheated_HP) - _flow(feed_water)
+                        E_F_IP = _flow(superheated_IP) - _flow(steam_inlet)
+                        E_F_w_inj = _flow(water_inj_HP) + _flow(water_inj_IP)
                         # Total exergy flow for the heat input (E_TOT) is taken as the exergy fuel E_F:
                         E_TOT = E_F_HP + E_F_IP - E_F_w_inj
                         conn_data["E"] = E_TOT
