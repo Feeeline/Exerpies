@@ -470,10 +470,10 @@ class AspenModelParser:
 
                 # STRM_UPP user-supplied exergy terms -> try 'e', fallback to 'power'
                 for node, key, name, property_key in [
-                    (usrech_node, "e_CH", "USRECH", "e_CH"),
-                    (usreme_node, "e_M", "USREME", "e_M"),
-                    (usreph_node, "e_PH", "USREPH", "e_PH"),
-                    (usreth_node, "e_T", "USRETH", "e_T"),
+                    (usrech_node, "ech", "USRECH", "e_CH"),
+                    (usreme_node, "em", "USREME", "e_M"),
+                    (usreph_node, "eph", "USREPH", "e_PH"),
+                    (usreth_node, "eth", "USRETH", "e_T"),
                 ]:
                     if node is not None and node.Value is not None:
                         connection_data[f"{key}_raw"] = node.Value
@@ -812,6 +812,14 @@ class AspenModelParser:
 
             # Assign connectors
             self.assign_connectors(component_data, block_name)
+
+        # Summary logging after parsing all blocks
+        logging.warning(
+            f"Parsing completed: parsed {len(block_names)} blocks, connections={len(self.connections_data)} items, component groups={len(self.components_data)}"
+        )
+        print(
+            f"Parsing completed: parsed {len(block_names)} blocks, connections={len(self.connections_data)} items, component groups={len(self.components_data)}"
+        )
 
     def assign_connectors(self, component_data, block_name):
         """
