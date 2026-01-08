@@ -83,7 +83,7 @@ class AspenModelParser:
         # ALL ASPEN CONNECTIONS
         # Log stream tree for visibility before parsing streams
         logging.warning(f"Stream tree discovered: {stream_names}")
-        logging.warning("Stream parsing will collect standard properties (T, p, h, s, m, exergy) and user-requested properties: LFRAC->lf, VFRAC_OUT->vf, VLSTD->vstd, MOLEFRAC(N2/O2/AR/CO2/H2O)->mfn2/mfo2/mfar/mfco/mfho, HMX->hmx, SMX->smx, STRM_UPP USRE*->ech/em/eph/eth")
+        logging.warning("Stream parsing will collect standard properties (T, p, h, s, m, exergy) and user-requested properties: LFRAC->lf, VFRAC_OUT->vf, VLSTD->vstd, MOLEFRAC(N2/O2/AR/CO2/H2O)->mfn2/mfo2/mfar/mfco/mfho, HMX->hmx, SMX->smx, STRM_UPP USRE*->e_CH/e_M/e_PH/e_T")
 
         # Initialize connection data with the common fields
         for stream_name in stream_names:
@@ -519,10 +519,10 @@ class AspenModelParser:
                 add_part("mfho", "mfho")
                 add_part("hmx", "hmx")
                 add_part("smx", "smx")
-                add_part("ech", "ech")
-                add_part("em", "em")
-                add_part("eph", "eph")
-                add_part("eth", "eth")
+                add_part("e_CH", "e_CH")
+                add_part("e_M", "e_M")
+                add_part("e_PH", "e_PH")
+                add_part("e_T", "e_T")
 
                 logging.warning(f"Parsed stream {stream_name}: " + ", ".join(summary_parts))
 
