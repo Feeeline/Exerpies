@@ -240,6 +240,11 @@ class AspenModelParser:
                             if (hmx_node is not None and hmx_node.Value is not None)
                             else None
                         ),
+                        "e_PH": (
+                            convert_to_SI("e", exergy_node.Value, exergy_node.UnitString, context=f"stream:{stream_name}:EXERGYMS")
+                            if (exergy_node is not None and exergy_node.Value is not None)
+                            else (logging.warning(f"e_PH node not found or empty for stream {stream_name}"), None)[1]
+                        ),
                         "n": (
                             convert_to_SI("n", totflow_node.Value, totflow_node.UnitString, context=f"stream:{stream_name}:TOT_FLOW")
                             if (totflow_node is not None and totflow_node.Value is not None)
@@ -463,7 +468,7 @@ class AspenModelParser:
                     connection_data["smx_raw"] = None
                     connection_data["smx_raw_unit"] = None
 
-                # STRM_UPP user-supplied exergy terms
+                # STRM_UPP user-supplied exergy terms -> try 'e', fallback to 'power'
                 for node, key, name, property_key in [
                     (usrech_node, "ech", "USRECH", "e_ch"),
                     (usreme_node, "em", "USREME", "e_m"),
