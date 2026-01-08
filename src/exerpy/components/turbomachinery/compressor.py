@@ -128,37 +128,86 @@ class Compressor(Component):
 
         # Case 1: Both temperatures above ambient
         elif round(self.inl[0]["T"], 5) >= T0 and round(self.outl[0]["T"], 5) > T0:
-            self.E_P = self.outl[0]["m"] * (self.outl[0]["e_PH"] - self.inl[0]["e_PH"])
+            e_PH_out = self.outl[0].get("e_PH")
+            e_PH_in = self.inl[0].get("e_PH")
+            m_out = self.outl[0].get("m")
+            if e_PH_out is None or e_PH_in is None or m_out is None:
+                logging.warning(
+                    f"Missing physical exergy or mass flow for compressor '{self.name}'; setting E_P to NaN."
+                )
+                self.E_P = np.nan
+            else:
+                self.E_P = m_out * (e_PH_out - e_PH_in)
             self.E_F = abs(self.P)
 
         # Case 2: Inlet below, outlet above ambient
         elif round(self.inl[0]["T"], 5) < T0 and round(self.outl[0]["T"], 5) > T0:
             if split_physical_exergy:
-                self.E_P = self.outl[0]["m"] * self.outl[0]["e_T"] + self.outl[0]["m"] * (
-                    self.outl[0]["e_M"] - self.inl[0]["e_M"]
-                )
-                self.E_F = abs(self.P) + self.inl[0]["m"] * self.inl[0]["e_T"]
+                e_T_out = self.outl[0].get("e_T")
+                e_M_out = self.outl[0].get("e_M")
+                e_M_in = self.inl[0].get("e_M")
+                m_out = self.outl[0].get("m")
+                m_in = self.inl[0].get("m")
+                if e_T_out is None or e_M_out is None or e_M_in is None or m_out is None or m_in is None:
+                    logging.warning(
+                        f"Missing thermal/mechanical exergy or mass flow for compressor '{self.name}'; setting E_P and E_F to NaN."
+                    )
+                    self.E_P = np.nan
+                    self.E_F = np.nan
+                else:
+                    self.E_P = m_out * e_T_out + m_out * (e_M_out - e_M_in)
+                    self.E_F = abs(self.P) + m_in * self.inl[0]["e_T"]
             else:
                 logging.warning(
                     "While dealing with compressor below ambient, "
                     "physical exergy should be split into thermal and mechanical components!"
                 )
-                self.E_P = self.outl[0]["m"] * (self.outl[0]["e_PH"] - self.inl[0]["e_PH"])
+                e_PH_out = self.outl[0].get("e_PH")
+                e_PH_in = self.inl[0].get("e_PH")
+                m_out = self.outl[0].get("m")
+                if e_PH_out is None or e_PH_in is None or m_out is None:
+                    logging.warning(
+                        f"Missing physical exergy or mass flow for compressor '{self.name}'; setting E_P to NaN."
+                    )
+                    self.E_P = np.nan
+                else:
+                    self.E_P = m_out * (e_PH_out - e_PH_in)
                 self.E_F = abs(self.P)
 
         # Case 3: Both temperatures below ambient
         elif round(self.inl[0]["T"], 5) < T0 and round(self.outl[0]["T"], 5) <= T0:
             if split_physical_exergy:
-                self.E_P = self.outl[0]["m"] * (self.outl[0]["e_M"] - self.inl[0]["e_M"])
-                self.E_F = abs(self.P) + self.inl[0]["m"] * (self.inl[0]["e_T"] - self.outl[0]["e_T"])
+                e_M_out = self.outl[0].get("e_M")
+                e_M_in = self.inl[0].get("e_M")
+                e_T_in = self.inl[0].get("e_T")
+                e_T_out = self.outl[0].get("e_T")
+                m_out = self.outl[0].get("m")
+                m_in = self.inl[0].get("m")
+                if e_M_out is None or e_M_in is None or e_T_in is None or e_T_out is None or m_out is None or m_in is None:
+                    logging.warning(
+                        f"Missing exergy components or mass flow for compressor '{self.name}'; setting E_P and E_F to NaN."
+                    )
+                    self.E_P = np.nan
+                    self.E_F = np.nan
+                else:
+                    self.E_P = m_out * (e_M_out - e_M_in)
+                    self.E_F = abs(self.P) + m_in * (e_T_in - e_T_out)
             else:
                 logging.warning(
                     "While dealing with compressor below ambient, "
                     "physical exergy should be split into thermal and mechanical components!"
                 )
-                self.E_P = self.outl[0]["m"] * (self.outl[0]["e_PH"] - self.inl[0]["e_PH"])
+                e_PH_out = self.outl[0].get("e_PH")
+                e_PH_in = self.inl[0].get("e_PH")
+                m_out = self.outl[0].get("m")
+                if e_PH_out is None or e_PH_in is None or m_out is None:
+                    logging.warning(
+                        f"Missing physical exergy or mass flow for compressor '{self.name}'; setting E_P to NaN."
+                    )
+                    self.E_P = np.nan
+                else:
+                    self.E_P = m_out * (e_PH_out - e_PH_in)
                 self.E_F = abs(self.P)
-
         # Invalid case: outlet temperature smaller than inlet
         else:
             logging.warning(

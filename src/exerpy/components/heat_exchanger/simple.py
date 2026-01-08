@@ -303,40 +303,131 @@ class SimpleHeatExchanger(Component):
 
         # Case 1: Heat is released (Q < 0)
         if Q < 0:
+            # Pre-fetch values
+            e_PH_in = inlet.get("e_PH")
+            e_PH_out = outlet.get("e_PH")
+            e_T_in = inlet.get("e_T")
+            e_T_out = outlet.get("e_T")
+            e_M_in = inlet.get("e_M")
+            e_M_out = outlet.get("e_M")
+
             if inlet["T"] >= T0 and outlet["T"] >= T0:
                 if split_physical_exergy:
-                    self.E_P = (
-                        np.nan if getattr(self, "dissipative", False) else inlet["m"] * (inlet["e_T"] - outlet["e_T"])
-                    )
+                    if getattr(self, "dissipative", False):
+                        self.E_P = np.nan
+                    else:
+                        if e_T_in is None or e_T_out is None:
+                            logging.warning(
+                                f"SimpleHeatExchanger {self.name}: missing e_T for E_P calculation in Q<0, setting to np.nan"
+                            )
+                            self.E_P = np.nan
+                        else:
+                            self.E_P = inlet["m"] * (e_T_in - e_T_out)
                 else:
-                    self.E_P = (
-                        np.nan if getattr(self, "dissipative", False) else inlet["m"] * (inlet["e_PH"] - outlet["e_PH"])
+                    if getattr(self, "dissipative", False):
+                        self.E_P = np.nan
+                    else:
+                        if e_PH_in is None or e_PH_out is None:
+                            logging.warning(
+                                f"SimpleHeatExchanger {self.name}: missing e_PH for E_P calculation in Q<0, setting to np.nan"
+                            )
+                            self.E_P = np.nan
+                        else:
+                            self.E_P = inlet["m"] * (e_PH_in - e_PH_out)
+
+                if e_PH_in is None or e_PH_out is None:
+                    logging.warning(
+                        f"SimpleHeatExchanger {self.name}: missing e_PH for E_F calculation in Q<0, setting to np.nan"
                     )
-                self.E_F = inlet["m"] * (inlet["e_PH"] - outlet["e_PH"])
+                    self.E_F = np.nan
+                else:
+                    self.E_F = inlet["m"] * (e_PH_in - e_PH_out)
 
             elif inlet["T"] >= T0 and outlet["T"] < T0:
                 if split_physical_exergy:
-                    self.E_P = outlet["m"] * outlet["e_T"]
-                    self.E_F = (
-                        inlet["m"] * inlet["e_T"]
-                        + outlet["m"] * outlet["e_T"]
-                        + (inlet["m"] * inlet["e_M"] - outlet["m"] * outlet["e_M"])
-                    )
-                else:
-                    self.E_P = outlet["m"] * outlet["e_PH"]
-                    self.E_F = inlet["m"] * inlet["e_PH"]
+                    if e_T_out is None:
+                        logging.warning(
+                            f"SimpleHeatExchanger {self.name}: missing e_T for E_P calculation (outlet) in Q<0, setting to np.nan"
+                        )
+                        self.E_P = np.nan
+                    else:
+                        self.E_P = outlet["m"] * e_T_out
 
-            elif inlet["T"] <= T0 and outlet["T"] < T0:
-                if split_physical_exergy:
-                    self.E_P = outlet["m"] * (outlet["e_T"] - inlet["e_T"])
-                    self.E_F = self.E_P + inlet["m"] * (inlet["e_M"] - outlet["m"] * outlet["e_M"])
+                    # E_F uses several pieces
+                    if e_T_in is None or e_T_out is None:
+                        logging.warning(
+                            f"SimpleHeatExchanger {self.name}: missing e_T for E_F calculation in Q<0, setting to np.nan"
+                        )
+                        self.E_F = np.nan
+                    elif e_M_in is None or e_M_out is None:
+                        logging.warning(
+                            f"SimpleHeatExchanger {self.name}: missing e_M for E_F calculation in Q<0, setting to np.nan"
+                        )
+                        self.E_F = np.nan
+                    else:
+                        self.E_F = (
+                            inlet["m"] * e_T_in + outlet["m"] * e_T_out + (inlet["m"] * e_M_in - outlet["m"] * e_M_out)
+                        )
                 else:
-                    self.E_P = (
-                        np.nan
-                        if getattr(self, "dissipative", False)
-                        else outlet["m"] * (outlet["e_PH"] - inlet["e_PH"])
-                    )
-                    self.E_F = outlet["m"] * (outlet["e_PH"] - inlet["e_PH"])
+                    if e_PH_out is None:
+                        logging.warning(
+                            f"SimpleHeatExchanger {self.name}: missing e_PH for E_P calculation (outlet) in Q<0, setting to np.nan"
+                        )
+                        self.E_P = np.nan
+                    else:
+                        self.E_P = outlet["m"] * e_PH_out
+
+                    if e_PH_in is None:
+                        logging.warning(
+                            f"SimpleHeatExchanger {self.name}: missing e_PH for E_F calculation (inlet) in Q<0, setting to np.nan"
+                        )
+                        self.E_F = np.nan
+                    else:
+                        self.E_F = inlet["m"] * e_PH_in
+            elif inlet["T"] <= T0 and outlet["T"] < T0:
+                # compute with guards for missing exergy pieces
+                if split_physical_exergy:
+                    e_T_out = outlet.get("e_T")
+                    e_T_in = inlet.get("e_T")
+                    e_M_in = inlet.get("e_M")
+                    e_M_out = outlet.get("e_M")
+                    if e_T_out is None or e_T_in is None:
+                        logging.warning(
+                            f"SimpleHeatExchanger {self.name}: missing e_T values for E_P calculation, setting to np.nan"
+                        )
+                        self.E_P = np.nan
+                    else:
+                        self.E_P = outlet["m"] * (e_T_out - e_T_in)
+
+                    # E_F uses E_P and mass/exergy terms; check required pieces
+                    if self.E_P is np.nan or e_M_in is None or e_M_out is None:
+                        logging.warning(
+                            f"SimpleHeatExchanger {self.name}: missing values for E_F calculation, setting to np.nan"
+                        )
+                        self.E_F = np.nan
+                    else:
+                        self.E_F = self.E_P + inlet["m"] * (e_M_in - outlet["m"] * e_M_out)
+                else:
+                    e_PH_out = outlet.get("e_PH")
+                    e_PH_in = inlet.get("e_PH")
+                    if getattr(self, "dissipative", False):
+                        self.E_P = np.nan
+                    else:
+                        if e_PH_out is None or e_PH_in is None:
+                            logging.warning(
+                                f"SimpleHeatExchanger {self.name}: missing e_PH values for E_P calculation, setting to np.nan"
+                            )
+                            self.E_P = np.nan
+                        else:
+                            self.E_P = outlet["m"] * (e_PH_out - e_PH_in)
+
+                    if e_PH_out is None or e_PH_in is None:
+                        logging.warning(
+                            f"SimpleHeatExchanger {self.name}: missing e_PH values for E_F calculation, setting to np.nan"
+                        )
+                        self.E_F = np.nan
+                    else:
+                        self.E_F = outlet["m"] * (e_PH_out - e_PH_in)
 
             else:
                 # Unimplemented corner case
@@ -346,35 +437,110 @@ class SimpleHeatExchanger(Component):
 
         # Case 2: Heat is added (Q > 0)
         elif Q > 0:
+            # Pre-fetch required values and guard against None
+            e_PH_out = outlet.get("e_PH")
+            e_PH_in = inlet.get("e_PH")
+            e_T_out = outlet.get("e_T")
+            e_T_in = inlet.get("e_T")
+            e_M_in = inlet.get("e_M")
+            e_M_out = outlet.get("e_M")
+
             if inlet["T"] >= T0 and outlet["T"] >= T0:
                 if split_physical_exergy:
-                    self.E_P = outlet["m"] * (outlet["e_PH"] - inlet["e_PH"])
-                    self.E_F = outlet["m"] * (outlet["e_T"] - inlet["e_T"])
+                    if e_PH_out is None or e_PH_in is None:
+                        logging.warning(
+                            f"SimpleHeatExchanger {self.name}: missing e_PH for E_P calculation, setting to np.nan"
+                        )
+                        self.E_P = np.nan
+                    else:
+                        self.E_P = outlet["m"] * (e_PH_out - e_PH_in)
+
+                    if e_T_out is None or e_T_in is None:
+                        logging.warning(
+                            f"SimpleHeatExchanger {self.name}: missing e_T for E_F calculation, setting to np.nan"
+                        )
+                        self.E_F = np.nan
+                    else:
+                        self.E_F = outlet["m"] * (e_T_out - e_T_in)
                 else:
-                    self.E_P = outlet["m"] * (outlet["e_PH"] - inlet["e_PH"])
-                    self.E_F = outlet["m"] * (outlet["e_PH"] - inlet["e_PH"])
+                    if e_PH_out is None or e_PH_in is None:
+                        logging.warning(
+                            f"SimpleHeatExchanger {self.name}: missing e_PH for E_P/E_F calculation, setting to np.nan"
+                        )
+                        self.E_P = np.nan
+                        self.E_F = np.nan
+                    else:
+                        self.E_P = outlet["m"] * (e_PH_out - e_PH_in)
+                        self.E_F = outlet["m"] * (e_PH_out - e_PH_in)
+
             elif inlet["T"] < T0 and outlet["T"] >= T0:
                 if split_physical_exergy:
-                    self.E_P = outlet["m"] * (outlet["e_T"] + inlet["e_T"])
-                    self.E_F = inlet["m"] * inlet["e_T"] + (inlet["m"] * inlet["e_M"] - outlet["m"] * outlet["e_M"])
+                    if e_T_out is None or e_T_in is None:
+                        logging.warning(
+                            f"SimpleHeatExchanger {self.name}: missing e_T for E_P/E_F calculation, setting to np.nan"
+                        )
+                        self.E_P = np.nan
+                        self.E_F = np.nan
+                    elif e_M_in is None or e_M_out is None:
+                        logging.warning(
+                            f"SimpleHeatExchanger {self.name}: missing e_M for E_F calculation, setting E_F to np.nan"
+                        )
+                        self.E_P = outlet.get("m", np.nan) * (e_T_out + e_T_in)
+                        self.E_F = np.nan
+                    else:
+                        self.E_P = outlet["m"] * (e_T_out + e_T_in)
+                        self.E_F = inlet["m"] * e_T_in + (inlet["m"] * e_M_in - outlet["m"] * e_M_out)
                 else:
-                    self.E_P = outlet["m"] * (outlet["e_PH"] - inlet["e_PH"])
-                    self.E_F = outlet["m"] * (outlet["e_PH"] - inlet["e_PH"])
+                    if e_PH_out is None or e_PH_in is None:
+                        logging.warning(
+                            f"SimpleHeatExchanger {self.name}: missing e_PH for E_P/E_F calculation, setting to np.nan"
+                        )
+                        self.E_P = np.nan
+                        self.E_F = np.nan
+                    else:
+                        self.E_P = outlet["m"] * (e_PH_out - e_PH_in)
+                        self.E_F = outlet["m"] * (e_PH_out - e_PH_in)
 
             elif inlet["T"] < T0 and outlet["T"] <= T0:
                 if split_physical_exergy:
-                    self.E_P = (
-                        np.nan
-                        if getattr(self, "dissipative", False)
-                        else inlet["m"] * (inlet["e_T"] - outlet["e_T"])
-                        + (outlet["m"] * outlet["e_M"] - inlet["m"] * inlet["e_M"])
-                    )
-                    self.E_F = inlet["m"] * (inlet["e_T"] - outlet["e_T"])
+                    # E_P may be nan if dissipative or missing values
+                    if getattr(self, "dissipative", False):
+                        self.E_P = np.nan
+                    else:
+                        if e_T_in is None or e_T_out is None:
+                            logging.warning(
+                                f"SimpleHeatExchanger {self.name}: missing e_T for E_P calculation, setting to np.nan"
+                            )
+                            self.E_P = np.nan
+                        else:
+                            self.E_P = inlet["m"] * (e_T_in - e_T_out)
+
+                    if e_T_in is None or e_T_out is None:
+                        logging.warning(
+                            f"SimpleHeatExchanger {self.name}: missing e_T for E_F calculation, setting to np.nan"
+                        )
+                        self.E_F = np.nan
+                    else:
+                        self.E_F = inlet["m"] * (e_T_in - e_T_out)
                 else:
-                    self.E_P = (
-                        np.nan if getattr(self, "dissipative", False) else inlet["m"] * (inlet["e_PH"] - outlet["e_PH"])
-                    )
-                    self.E_F = inlet["m"] * (inlet["e_PH"] - outlet["e_PH"])
+                    if getattr(self, "dissipative", False):
+                        self.E_P = np.nan
+                    else:
+                        if e_PH_in is None or e_PH_out is None:
+                            logging.warning(
+                                f"SimpleHeatExchanger {self.name}: missing e_PH for E_P calculation, setting to np.nan"
+                            )
+                            self.E_P = np.nan
+                        else:
+                            self.E_P = inlet["m"] * (e_PH_in - e_PH_out)
+
+                    if e_PH_in is None or e_PH_out is None:
+                        logging.warning(
+                            f"SimpleHeatExchanger {self.name}: missing e_PH for E_F calculation, setting to np.nan"
+                        )
+                        self.E_F = np.nan
+                    else:
+                        self.E_F = inlet["m"] * (e_PH_in - e_PH_out)
             else:
                 logging.warning("SimpleHeatExchanger: unimplemented case (Q > 0, T_in > T0 > T_out?).")
                 self.E_P = np.nan
@@ -383,7 +549,15 @@ class SimpleHeatExchanger(Component):
         # Case 3: Fully dissipative or Q == 0
         else:
             self.E_P = np.nan
-            self.E_F = inlet["m"] * (inlet["e_PH"] - outlet["e_PH"])
+            e_PH_in = inlet.get("e_PH")
+            e_PH_out = outlet.get("e_PH")
+            if e_PH_in is None or e_PH_out is None:
+                logging.warning(
+                    f"SimpleHeatExchanger {self.name}: missing e_PH for E_F calculation in Q==0/dissipative case, setting to np.nan"
+                )
+                self.E_F = np.nan
+            else:
+                self.E_F = inlet["m"] * (e_PH_in - e_PH_out)
 
         # Calculate exergy destruction
         if np.isnan(self.E_P):

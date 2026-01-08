@@ -152,7 +152,7 @@ def dummy_convert_to_SI():
     function
         A lambda function that returns the numeric value without conversion.
     """
-    return lambda phys, value, unit_str: value
+    return lambda phys, value, unit_str, context=None: value
 
 
 @pytest.fixture

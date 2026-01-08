@@ -20,4 +20,4 @@ product = {"inputs": [], "outputs": [c for c in material_conns if c.endswith('32
 loss = {"inputs": [], "outputs": [c for c in material_conns if c.endswith('28') or c.endswith('25')][:2]}
 
 ean.analyse(E_F=fuel, E_P=product, E_L=loss)
-ean.exergy_results()
+ean.export_to_json("C:\\Users\\Felin\\Documents\\Masterthesis\\Code\\Exerpies\\examples\\asu_aspen\\Doppelkolonne_exergy_analysis.json")

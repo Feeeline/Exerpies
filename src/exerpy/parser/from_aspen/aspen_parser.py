@@ -81,6 +81,10 @@ class AspenModelParser:
         stream_names = [stream_node.Name for stream_node in stream_nodes]
 
         # ALL ASPEN CONNECTIONS
+        # Log stream tree for visibility before parsing streams
+        logging.warning(f"Stream tree discovered: {stream_names}")
+        logging.warning("Stream parsing will collect standard properties (T, p, h, s, m, exergy) and user-requested properties: LFRAC->lf, VFRAC_OUT->vf, VLSTD->vstd, MOLEFRAC(N2/O2/AR/CO2/H2O)->mfn2/mfo2/mfar/mfco/mfho, HMX->hmx, SMX->smx, STRM_UPP USRE*->ech/em/eph/eth")
+
         # Initialize connection data with the common fields
         for stream_name in stream_names:
             self.aspen.Tree.FindNode(rf"\Data\Streams\{stream_name}")
@@ -351,6 +355,176 @@ class AspenModelParser:
                         ).Value
                         if mass_frac not in [0, None]:  # Skip fluids with 0 or None as the fraction
                             connection_data["mass_composition"][fluid_name] = mass_frac
+
+                # Map the user-requested nodes into explicit properties
+                # Use 'x' conversion (unitless fraction) where appropriate
+                if lfrac_node is not None and lfrac_node.Value is not None:
+                    raw_unit = lfrac_node.UnitString or "1"
+                    try:
+                        connection_data["lf"] = convert_to_SI("x", lfrac_node.Value, raw_unit, context=f"stream:{stream_name}:LFRAC")
+                        connection_data["lf_unit"] = fluid_property_data["x"]["SI_unit"]
+                    except Exception:
+                        logging.warning(f"Conversion for LFRAC in stream {stream_name} failed; storing raw value.")
+                        connection_data["lf"] = lfrac_node.Value
+                        connection_data["lf_unit"] = None
+                    connection_data["lf_raw"] = lfrac_node.Value
+                    connection_data["lf_raw_unit"] = raw_unit
+                else:
+                    connection_data["lf"] = None
+                    connection_data["lf_unit"] = None
+                    connection_data["lf_raw"] = None
+                    connection_data["lf_raw_unit"] = None
+
+                if vfrac_node is not None and vfrac_node.Value is not None:
+                    raw_unit = vfrac_node.UnitString or "1"
+                    try:
+                        connection_data["vf"] = convert_to_SI("x", vfrac_node.Value, raw_unit, context=f"stream:{stream_name}:VFRAC_OUT")
+                        connection_data["vf_unit"] = fluid_property_data["x"]["SI_unit"]
+                    except Exception:
+                        logging.warning(f"Conversion for VFRAC_OUT in stream {stream_name} failed; storing raw value.")
+                        connection_data["vf"] = vfrac_node.Value
+                        connection_data["vf_unit"] = None
+                    connection_data["vf_raw"] = vfrac_node.Value
+                    connection_data["vf_raw_unit"] = raw_unit
+                else:
+                    connection_data["vf"] = None
+                    connection_data["vf_unit"] = None
+                    connection_data["vf_raw"] = None
+                    connection_data["vf_raw_unit"] = None
+
+                if vlstd_node is not None and vlstd_node.Value is not None:
+                    raw_unit = vlstd_node.UnitString or "1"
+                    try:
+                        connection_data["vstd"] = convert_to_SI("x", vlstd_node.Value, raw_unit, context=f"stream:{stream_name}:VLSTD")
+                        connection_data["vstd_unit"] = fluid_property_data["x"]["SI_unit"]
+                    except Exception:
+                        logging.warning(f"Conversion for VLSTD in stream {stream_name} failed; storing raw value.")
+                        connection_data["vstd"] = vlstd_node.Value
+                        connection_data["vstd_unit"] = None
+                    connection_data["vstd_raw"] = vlstd_node.Value
+                    connection_data["vstd_raw_unit"] = raw_unit
+                else:
+                    connection_data["vstd"] = None
+                    connection_data["vstd_unit"] = None
+                    connection_data["vstd_raw"] = None
+                    connection_data["vstd_raw_unit"] = None
+
+                # Explicit species mole fractions
+                for sp, key in [("N2", "mfn2"), ("O2", "mfo2"), ("AR", "mfar"), ("CO2", "mfco"), ("H2O", "mfho")]:
+                    sp_node = self.aspen.Tree.FindNode(rf"\Data\Streams\{stream_name}\Output\MOLEFRAC\MIXED\{sp}")
+                    if sp_node is not None and sp_node.Value is not None:
+                        raw_unit = sp_node.UnitString or "1"
+                        try:
+                            connection_data[key] = convert_to_SI("x", sp_node.Value, raw_unit, context=f"stream:{stream_name}:MOLEFRAC:{sp}")
+                            connection_data[f"{key}_unit"] = fluid_property_data["x"]["SI_unit"]
+                        except Exception:
+                            logging.warning(f"Conversion for MOLEFRAC {sp} in stream {stream_name} failed; storing raw value.")
+                            connection_data[key] = sp_node.Value
+                            connection_data[f"{key}_unit"] = None
+                        connection_data[f"{key}_raw"] = sp_node.Value
+                        connection_data[f"{key}_raw_unit"] = raw_unit
+                        if sp_node.Value not in [0, None]:
+                            connection_data["molar_composition"].setdefault(sp, sp_node.Value)
+                    else:
+                        connection_data[key] = None
+                        connection_data[f"{key}_unit"] = None
+                        connection_data[f"{key}_raw"] = None
+                        connection_data[f"{key}_raw_unit"] = None
+
+                # HMX and SMX (per-mole/kmol properties) as explicit fields
+                # HMX and SMX (per-mole/kmol properties) as explicit fields
+                if hmx_total_node is not None and hmx_total_node.Value is not None:
+                    # store raw values
+                    connection_data["hmx_raw"] = hmx_total_node.Value
+                    connection_data["hmx_raw_unit"] = hmx_total_node.UnitString
+                    try:
+                        connection_data["hmx"] = convert_to_SI("h", hmx_total_node.Value, hmx_total_node.UnitString, context=f"stream:{stream_name}:HMX")
+                        connection_data["hmx_unit"] = fluid_property_data["h"]["SI_unit"]
+                    except Exception as e:
+                        logging.warning(f"HMX conversion for stream {stream_name} failed: {e}. Setting to None.")
+                        connection_data["hmx"] = None
+                        connection_data["hmx_unit"] = None
+                else:
+                    connection_data["hmx"] = None
+                    connection_data["hmx_unit"] = None
+                    connection_data["hmx_raw"] = None
+                    connection_data["hmx_raw_unit"] = None
+
+                if smx_total_node is not None and smx_total_node.Value is not None:
+                    connection_data["smx_raw"] = smx_total_node.Value
+                    connection_data["smx_raw_unit"] = smx_total_node.UnitString
+                    try:
+                        connection_data["smx"] = convert_to_SI("s", smx_total_node.Value, smx_total_node.UnitString, context=f"stream:{stream_name}:SMX")
+                        connection_data["smx_unit"] = fluid_property_data["s"]["SI_unit"]
+                    except Exception as e:
+                        logging.warning(f"SMX conversion for stream {stream_name} failed: {e}. Setting to None.")
+                        connection_data["smx"] = None
+                        connection_data["smx_unit"] = None
+                else:
+                    connection_data["smx"] = None
+                    connection_data["smx_unit"] = None
+                    connection_data["smx_raw"] = None
+                    connection_data["smx_raw_unit"] = None
+
+                # STRM_UPP user-supplied exergy terms -> try 'e', fallback to 'power'
+                for node, key, name in [(usrech_node, "ech", "USRECH"), (usreme_node, "em", "USREME"), (usreph_node, "eph", "USREPH"), (usreth_node, "eth", "USRETH")]:
+                    if node is not None and node.Value is not None:
+                        connection_data[f"{key}_raw"] = node.Value
+                        connection_data[f"{key}_raw_unit"] = node.UnitString
+                        try:
+                            connection_data[key] = convert_to_SI("e", node.Value, node.UnitString, context=f"stream:{stream_name}:{name}")
+                            connection_data[f"{key}_unit"] = fluid_property_data["e"]["SI_unit"]
+                        except Exception:
+                            logging.warning(
+                                f"Unit conversion for {name} in stream {stream_name} failed: attempting fallback to 'power' conversion."
+                            )
+                            try:
+                                connection_data[key] = convert_to_SI("power", node.Value, node.UnitString, context=f"stream:{stream_name}:{name}")
+                                connection_data[f"{key}_unit"] = fluid_property_data["power"]["SI_unit"]
+                            except Exception as e2:
+                                logging.warning(f"Fallback conversion also failed for {name} in stream {stream_name}: {e2}. Setting to None.")
+                                connection_data[key] = None
+                                connection_data[f"{key}_unit"] = None
+                    else:
+                        connection_data[key] = None
+                        connection_data[f"{key}_raw"] = None
+                        connection_data[f"{key}_raw_unit"] = None
+                        connection_data[f"{key}_unit"] = None
+
+                # Log parsed properties for visibility
+                # Build a more detailed summary including raw units and raw values when available
+                summary_parts = []
+                def add_part(key, pretty):
+                    val = connection_data.get(key)
+                    raw = connection_data.get(f"{key}_raw")
+                    raw_unit = connection_data.get(f"{key}_raw_unit")
+                    unit = connection_data.get(f"{key}_unit")
+                    if val is None and raw is None:
+                        summary_parts.append(f"{pretty}=None")
+                    else:
+                        if raw is not None and raw_unit is not None:
+                            summary_parts.append(f"{pretty}={val} (raw={raw} {raw_unit})")
+                        elif raw is not None:
+                            summary_parts.append(f"{pretty}={val} (raw={raw})")
+                        else:
+                            summary_parts.append(f"{pretty}={val}")
+
+                add_part("lf", "lf")
+                add_part("vf", "vf")
+                add_part("vstd", "vstd")
+                add_part("mfn2", "mfn2")
+                add_part("mfo2", "mfo2")
+                add_part("mfar", "mfar")
+                add_part("mfco", "mfco")
+                add_part("mfho", "mfho")
+                add_part("hmx", "hmx")
+                add_part("smx", "smx")
+                add_part("ech", "ech")
+                add_part("em", "em")
+                add_part("eph", "eph")
+                add_part("eth", "eth")
+
+                logging.warning(f"Parsed stream {stream_name}: " + ", ".join(summary_parts))
 
             # Store connection data
             self.connections_data[stream_name] = connection_data
