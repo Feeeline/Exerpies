@@ -554,9 +554,8 @@ class AspenModelParser:
             component_type = component_type_node.AttributeValue(6)
             if component_type == "Mixer":
                 mixer_value = component_type_node.Value
-                if mixer_value in ["TRIANGLE", "HEAT"]:
-                    logging.info(f"Ignoring Mixer {block_name} with value {mixer_value}.")
-                    continue
+                # Previously TRIANGLE/HEAT mixers were skipped; now we accept all mixers
+                logging.debug(f"Mixer {block_name} detected with value {mixer_value}; accepting for parsing.")
 
             component_data = {
                 "name": block_name,

@@ -114,6 +114,26 @@
                 }
             }
         },
+        "Mixer": {
+            "MIX1": {
+                "name": "MIX1",
+                "type": "Mixer",
+                "eta_s": null,
+                "eta_mech": null,
+                "Q": null,
+                "Q_unit": "W",
+                "P": null,
+                "P_unit": "W",
+                "exergy_results": {
+                    "E_F": 90776.01369272143,
+                    "E_P": 42170.88054026334,
+                    "E_D": 48605.1331524581,
+                    "epsilon": 0.4645597314177354,
+                    "y": 0.00806698564726438,
+                    "y_star": 0.0073044396649808935
+                }
+            }
+        },
         "RadFrac": {
             "KOLHP": {
                 "name": "KOLHP",
@@ -1198,7 +1218,7 @@
             "source_component": "MW",
             "source_connector": 2,
             "target_component": "MIX1",
-            "target_connector": null,
+            "target_connector": 1,
             "T": 305.20244,
             "T_unit": "K",
             "p": 600000.0,
@@ -3135,7 +3155,7 @@
             "source_component": "PK1",
             "source_connector": 0,
             "target_component": "MIX1",
-            "target_connector": null,
+            "target_connector": 0,
             "T": 391.07063,
             "T_unit": "K",
             "p": 610000.0,
@@ -3248,7 +3268,7 @@
             "name": "S32",
             "kind": "material",
             "source_component": "MIX1",
-            "source_connector": null,
+            "source_connector": 0,
             "target_component": null,
             "target_connector": null,
             "T": 347.981144,
