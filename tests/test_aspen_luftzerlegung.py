@@ -26,7 +26,9 @@ console_handler.setFormatter(logging.Formatter('%(message)s'))
 logging.root.addHandler(console_handler)
 logging.root.setLevel(logging.INFO)
 
-model_path = r'C:\Users\Felin\Documents\Masterthesis\Code\Exerpy\exerpy\examples\asu_aspen\Doppelkolonne.bkp'
+#model_path = r'C:\Users\Felin\Documents\Masterthesis\Code\Exerpy\exerpy\examples\asu_aspen\Doppelkolonne.bkp'
+model_path = r"C:\Users\Felin\Documents\Masterthesis\Simulation_Code\GIT\examples\asu_aspen\Doppelkolonne\Doppelkolonne_Simulation_Final.bkp"
+
 
 ean = ExergyAnalysis.from_aspen(model_path, chemExLib='Ahrendts', split_physical_exergy=True)
 
