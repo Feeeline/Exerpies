@@ -224,6 +224,50 @@ def _build_streams_latex_table(connections: dict) -> str:
     return "\n".join(lines)
 
 
+def _build_component_results_table(components: dict) -> str:
+    header = " & ".join([
+        "Component",
+        "Type",
+        r"$E_F$",
+        r"$E_P$",
+        r"$E_D$",
+        r"$\varepsilon$",
+    ]) + " \\\\"
+    unit_row = " & ".join(["", "", "(W)", "(W)", "(W)", "(-)"]) + " \\\\"
+
+    rows = []
+    for comp_name, component in components.items():
+        if component.__class__.__name__ == "CycleCloser":
+            continue
+        E_F = getattr(component, "E_F", None)
+        E_P = getattr(component, "E_P", None)
+        E_D = getattr(component, "E_D", None)
+        epsilon = getattr(component, "epsilon", None)
+
+        rows.append(
+            " & ".join([
+                _latex_escape(str(comp_name)),
+                _latex_escape(component.__class__.__name__),
+                _format_value(E_F),
+                _format_value(E_P),
+                _format_value(E_D),
+                _format_value(epsilon),
+            ]) + r" \\")
+
+    col_spec = "l" + "l" + "r" * 4
+    lines = [
+        f"\\begin{{tabular}}{{{col_spec}}}",
+        "\\hline",
+        header,
+        unit_row,
+        "\\hline",
+        *rows,
+        "\\hline",
+        "\\end{tabular}",
+    ]
+    return "\n".join(lines)
+
+
 def _collect_components(connections: dict, composition_key: str) -> list[str]:
     components = set()
     for conn in connections.values():
@@ -293,3 +337,16 @@ connections_data = json_payload.get("connections", {})
 latex_table = _build_streams_latex_table(connections_data)
 with open(latex_output_path, "w", encoding="utf-8") as tex_file:
     tex_file.write(latex_table)
+
+components_output_path = os.path.abspath(
+    os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "Overleaf_LaTeX",
+        "tabellen",
+        "aspen_luftzerlegung_components.tex",
+    )
+)
+components_table = _build_component_results_table(ean.components)
+with open(components_output_path, "w", encoding="utf-8") as tex_file:
+    tex_file.write(components_table)
